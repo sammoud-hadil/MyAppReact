@@ -203,7 +203,7 @@ docker compose down -v       # ... et supprimer aussi le volume de données
 ## Modifications apportées au code
 
 1. **Connexion à MongoDB (`Server/src/index.mjs`)** : le serveur d'origine n'utilisait pas MongoDB. J'ai ajouté `mongoose`, qui se connecte avec la variable d'environnement `MONGO_URI`. La route `/api/health` renvoie maintenant aussi l'état de la base (`"db": "connected"` ou `"disconnected"`).
-2. **`Client/package-lock.json` régénéré** : le fichier d'origine avait été créé sous Windows et ne contenait que le binaire natif de Vite/rolldown pour Windows (`@rolldown/binding-win32-x64-msvc`). Sous Linux, `npm run build` échouait (`Cannot find native binding`), et donc aussi dans le conteneur Alpine. Le nouveau lock contient les binaires de toutes les plateformes, y compris `linux-x64-musl` pour Alpine.
+2. **`package-lock.json` du client** : le fichier d'origine avait été créé sous Windows et ne contenait que le binaire natif de Vite/rolldown pour Windows. Sous Linux (Alpine), `npm run build` échouait (`Cannot find native binding`). Le Dockerfile du client supprime donc ce fichier avant `npm install`, pour que npm installe les binaires adaptés à Linux.
 
 ## Remarque sur la communication client → serveur
 
