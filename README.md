@@ -163,3 +163,6 @@ docker compose down
 **Connexion à MongoDB** : au départ le serveur n'était pas connecté à MongoDB. J'ai ajouté `mongoose` dans `Server/src/index.mjs` pour se connecter avec la variable `MONGO_URI`. J'ai aussi modifié la route `/api/health` pour qu'elle affiche si la base est connectée ou pas.
 
 **Erreur au build du client** : le `package-lock.json` du client avait été généré sous Windows, donc `npm run build` plantait dans le conteneur Linux avec l'erreur `Cannot find native binding`. Pour régler ça, le Dockerfile supprime ce fichier avant `npm install`, et npm installe alors les bonnes versions pour Linux.
+<img width="1852" height="1200" alt="image" src="https://github.com/user-attachments/assets/66670a7b-e05b-4e78-ab61-82b0d7fb0bf3" />
+<img width="1372" height="891" alt="image" src="https://github.com/user-attachments/assets/f74099fa-c204-43e0-b0b4-84448e4c5a2a" />
+
