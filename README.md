@@ -1,39 +1,23 @@
-# TP4 : Docker et Docker Compose — Application MERN
+# TP4 – Docker et Docker Compose
 
-Containerisation d'une application MERN (MongoDB, Express, React, Node.js) avec Docker, puis orchestration des trois conteneurs avec Docker Compose.
+Dans ce TP, j'ai containerisé une application MERN (MongoDB, Express, React, Node.js). J'ai d'abord lancé chaque conteneur à la main avec Docker, puis j'ai tout regroupé avec Docker Compose.
 
-## Structure du projet
+## Le projet
 
-```
-MyAppReact/
-├── Client/                 # Application React (Vite)
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   └── src/App.jsx         # appelle http://localhost:9000/api/health
-├── Server/                 # API Express
-│   ├── Dockerfile
-│   ├── .dockerignore
-│   └── src/index.mjs       # route GET /api/health + connexion MongoDB
-├── docker-compose.yml
-└── README.md
-```
-
-> Remarque : dans ce dépôt, les dossiers s'appellent `Client` et `Server` (avec une majuscule). Sous Linux et dans Docker les chemins sont sensibles à la casse, donc toutes les commandes utilisent `./Client` et `./Server`.
-
----
-
-## 1. Cloner le projet
+J'ai forké le dépôt https://github.com/wiem-kb/MyAppReact puis je l'ai cloné :
 
 ```bash
-git clone https://github.com/wiem-kb/MyAppReact.git
+git clone https://github.com/sammoud-hadil/MyAppReact.git
 cd MyAppReact
 ```
 
-Le projet contient deux parties : `Client` (front-end React construit avec Vite) et `Server` (API Express qui expose `GET /api/health` sur le port 9000).
+Il contient deux dossiers :
+- `Client` : l'application React (faite avec Vite)
+- `Server` : l'API Express, avec une route `/api/health` sur le port 9000
 
-## 2. Créer les Dockerfiles
+Attention, les dossiers commencent par une majuscule (`Client` et `Server`), donc dans les commandes j'ai utilisé `./Client` et `./Server` et pas `./client` comme dans l'énoncé.
 
-### a. Serveur (Express) — `Server/Dockerfile`
+## Dockerfile du serveur
 
 ```dockerfile
 FROM node:lts-alpine
@@ -47,23 +31,13 @@ EXPOSE 9000
 CMD ["npm", "start"]
 ```
 
-| Instruction | Rôle |
-|---|---|
-| `FROM node:lts-alpine` | Image de base Node.js LTS, légère (Alpine Linux) |
-| `WORKDIR /app` | Répertoire de travail dans le conteneur |
-| `COPY package*.json ./` puis `RUN npm install` | Installe les dépendances. Copier ces fichiers en premier permet à Docker de réutiliser le cache tant que les dépendances ne changent pas |
-| `COPY . .` | Copie le code source du serveur |
-| `ENV MONGO_URI=...` | Valeur par défaut, surchargée par Docker Compose |
-| `EXPOSE 9000` | Documente le port utilisé par l'API |
-| `CMD ["npm", "start"]` | Lance `node src/index.mjs` |
-
-Construction de l'image :
+On part de l'image `node:lts-alpine` qui est légère. Je copie d'abord les `package*.json` et je fais `npm install` avant de copier le reste du code : comme ça Docker garde les dépendances en cache si je modifie seulement le code. La variable `MONGO_URI` a une valeur par défaut mais c'est Docker Compose qui la définit vraiment.
 
 ```bash
 docker build -t mern-server ./Server
 ```
 
-### b. Client (React) — `Client/Dockerfile`
+## Dockerfile du client
 
 ```dockerfile
 FROM node:lts-alpine
@@ -77,63 +51,47 @@ EXPOSE 3000
 CMD ["serve", "-s", "dist", "-l", "3000"]
 ```
 
-- `npm run build` lance `vite build`, qui génère les fichiers statiques dans `dist/` (Vite utilise `dist/`, pas `build/` comme Create React App).
-- `serve` est un serveur HTTP léger. `-s` active le mode SPA et `-l 3000` écoute sur le port 3000.
-
-Construction de l'image :
+`npm run build` génère les fichiers dans le dossier `dist` (avec Vite c'est `dist` et pas `build`). Ensuite j'utilise `serve` pour servir ces fichiers sur le port 3000.
 
 ```bash
 docker build -t mern-client ./Client
 ```
 
-> L'énoncé indique `docker build -t mern-server ./client` pour le client. C'est une coquille : l'image du client doit s'appeler `mern-client`, sinon elle écrase l'image du serveur.
+Remarque : dans l'énoncé, la commande pour le client est `docker build -t mern-server ./client`. J'ai mis `mern-client` sinon l'image du client remplace celle du serveur.
 
-### Fichiers `.dockerignore`
+J'ai aussi ajouté un fichier `.dockerignore` dans chaque dossier pour ne pas copier `node_modules` dans l'image.
 
-Chaque dossier contient un `.dockerignore` qui exclut `node_modules` (et `dist` côté client). Les dépendances sont réinstallées dans le conteneur pour le bon système (Alpine Linux), et l'image reste plus légère.
+## Lancer les conteneurs à la main
 
-## 3. Créer un réseau Docker
+Création du réseau :
 
 ```bash
 docker network create mern-network
 ```
 
-Les conteneurs d'un même réseau *bridge* défini par l'utilisateur peuvent communiquer entre eux en utilisant leur nom comme nom d'hôte (DNS interne de Docker).
-
-## 4. Exécuter MongoDB dans un conteneur
+MongoDB :
 
 ```bash
 docker run -d --name mongodb --network mern-network mongo
 ```
 
-MongoDB écoute sur le port 27017 à l'intérieur du réseau. Le port n'est pas publié sur la machine hôte car seul le serveur a besoin d'y accéder.
-
-## 5. Exécuter les conteneurs du serveur et du client
+Serveur et client :
 
 ```bash
-docker run -d --name server --network mern-network -p 9000:9000 \
-  -e MONGO_URI=mongodb://mongodb:27017/mern mern-server
-
+docker run -d --name server --network mern-network -p 9000:9000 -e MONGO_URI=mongodb://mongodb:27017/mern mern-server
 docker run -d --name client --network mern-network -p 3000:3000 mern-client
 ```
 
-Vérification :
+Comme les trois conteneurs sont sur le même réseau, le serveur peut joindre MongoDB juste avec le nom `mongodb`.
 
-```bash
-docker ps
-curl http://localhost:9000/api/health   # {"message":"API is running","db":"connected"}
-```
-
-Puis ouvrir http://localhost:3000 dans le navigateur : la page affiche « API is running ».
-
-Nettoyage avant de passer à Docker Compose (les noms de conteneurs doivent être libres) :
+Avant de passer à Docker Compose, j'ai supprimé ces conteneurs :
 
 ```bash
 docker rm -f client server mongodb
 docker network rm mern-network
 ```
 
-## 6. Docker Compose — `docker-compose.yml`
+## Docker Compose
 
 ```yaml
 services:
@@ -177,34 +135,31 @@ volumes:
   mongo-data:
 ```
 
-Points clés :
+- `depends_on` permet de démarrer MongoDB d'abord, puis le serveur, puis le client.
+- Le serveur se connecte à MongoDB avec `mongodb://mongodb:27017/mern` : `mongodb` c'est le nom du service.
+- J'ai ajouté un volume `mongo-data` pour ne pas perdre les données si le conteneur est supprimé.
 
-- **`build`** construit l'image à partir du Dockerfile du dossier indiqué, et **`image`** lui donne un nom (`mern-server`, `mern-client`).
-- **`depends_on`** fixe l'ordre de démarrage : `mongodb`, puis `server`, puis `client`.
-- **`MONGO_URI=mongodb://mongodb:27017/mern`** : le serveur joint MongoDB en utilisant le **nom du service** `mongodb` comme nom d'hôte.
-- **`mern-network`** est un réseau de type `bridge` partagé par les trois services.
-- **Volume `mongo-data`** (ajout facultatif) : les données MongoDB sont conservées même si le conteneur est supprimé.
-
-Lancement :
+Pour tout lancer :
 
 ```bash
 docker compose up --build
 ```
 
-Commandes utiles :
+Et pour arrêter :
 
 ```bash
-docker compose ps            # état des services
-docker compose logs server   # logs du serveur
-docker compose down          # arrêter et supprimer les conteneurs
-docker compose down -v       # ... et supprimer aussi le volume de données
+docker compose down
 ```
 
-## Modifications apportées au code
+## Résultat
 
-1. **Connexion à MongoDB (`Server/src/index.mjs`)** : le serveur d'origine n'utilisait pas MongoDB. J'ai ajouté `mongoose`, qui se connecte avec la variable d'environnement `MONGO_URI`. La route `/api/health` renvoie maintenant aussi l'état de la base (`"db": "connected"` ou `"disconnected"`).
-2. **`package-lock.json` du client** : le fichier d'origine avait été créé sous Windows et ne contenait que le binaire natif de Vite/rolldown pour Windows. Sous Linux (Alpine), `npm run build` échouait (`Cannot find native binding`). Le Dockerfile du client supprime donc ce fichier avant `npm install`, pour que npm installe les binaires adaptés à Linux.
+<img width="1920" height="1200" alt="Application lancée avec Docker Compose" src="https://github.com/user-attachments/assets/8f120c3e-cf81-4853-b9b4-f4b427b189c8" />
 
-## Remarque sur la communication client → serveur
+- http://localhost:3000 affiche « API is running »
+- http://localhost:9000/api/health renvoie `{"message":"API is running","db":"connected"}`
 
-Le code React s'exécute **dans le navigateur de l'utilisateur**, pas dans le conteneur. L'appel `fetch("http://localhost:9000/api/health")` fonctionne donc parce que le port 9000 du serveur est publié sur la machine hôte (`-p 9000:9000`). Le nom de service `server` n'est utilisable qu'entre conteneurs (par exemple, server → mongodb).
+## Problèmes rencontrés
+
+**Connexion à MongoDB** : au départ le serveur n'était pas connecté à MongoDB. J'ai ajouté `mongoose` dans `Server/src/index.mjs` pour se connecter avec la variable `MONGO_URI`. J'ai aussi modifié la route `/api/health` pour qu'elle affiche si la base est connectée ou pas.
+
+**Erreur au build du client** : le `package-lock.json` du client avait été généré sous Windows, donc `npm run build` plantait dans le conteneur Linux avec l'erreur `Cannot find native binding`. Pour régler ça, le Dockerfile supprime ce fichier avant `npm install`, et npm installe alors les bonnes versions pour Linux.
