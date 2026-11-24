@@ -16,8 +16,8 @@ pipeline {
         stage('Build des images') {
             steps {
                 script {
-                    runCmd('docker build -t mern-server ./Server')
-                    runCmd('docker build -t mern-client ./Client')
+                    runCmd('docker build -t hadilsamoud/mern-server:latest ./Server')
+                    runCmd('docker build -t hadilsamoud/mern-client:latest ./Client')
                 }
             }
         }
@@ -29,22 +29,12 @@ pipeline {
                                                   passwordVariable: 'DH_PASS')]) {
                     script {
                         if (isUnix()) {
-                            sh '''
-                                echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
-                                docker tag mern-server "$DH_USER/mern-server:latest"
-                                docker tag mern-client "$DH_USER/mern-client:latest"
-                                docker push "$DH_USER/mern-server:latest"
-                                docker push "$DH_USER/mern-client:latest"
-                            '''
+                            sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
                         } else {
-                            bat '''
-                                echo %DH_PASS%| docker login -u %DH_USER% --password-stdin
-                                docker tag mern-server %DH_USER%/mern-server:latest
-                                docker tag mern-client %DH_USER%/mern-client:latest
-                                docker push %DH_USER%/mern-server:latest
-                                docker push %DH_USER%/mern-client:latest
-                            '''
+                            bat 'echo %DH_PASS%| docker login -u %DH_USER% --password-stdin'
                         }
+                        runCmd('docker push hadilsamoud/mern-server:latest')
+                        runCmd('docker push hadilsamoud/mern-client:latest')
                     }
                 }
             }
@@ -53,11 +43,7 @@ pipeline {
         stage('Deploiement') {
             steps {
                 script {
-                    if (isUnix()) {
-                        sh 'docker rm -f mongodb server client || true'
-                    } else {
-                        bat 'docker rm -f mongodb server client || exit /b 0'
-                    }
+                    runCmd('docker compose down')
                     runCmd('docker compose up -d')
                 }
             }
