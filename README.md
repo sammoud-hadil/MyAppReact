@@ -69,7 +69,7 @@ docker build -t mern-server ./Server
 FROM node:lts-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN rm -f package-lock.json && npm install
 COPY . .
 RUN npm run build
 RUN npm install -g serve
